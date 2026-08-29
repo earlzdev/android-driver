@@ -1,0 +1,61 @@
+# A classic View-system app, tested from a prebuilt APK with no Gradle at all —
+# the shape you want in CI, or when the APK comes from a build server.
+
+app:
+  package: com.example.viewapp
+
+build:
+  # No `command`, so `build_app` is unavailable and `install_app` uses this file
+  # directly. Point it at wherever your CI dropped the artifact.
+  apk: artifacts/app-debug.apk
+
+install:
+  strategy: uninstall-then-install
+  grant_runtime_perms: true
+  # OEM permission overlays can keep blocking after `pm grant` reports success.
+  # Harmless on an emulator; keep it if the same config also runs on hardware.
+  appops: [CAMERA, RECORD_AUDIO]
+
+timing:
+  cold_start_settle_s: 1.5
+  boot_timeout_s: 300
+
+driver:
+  # Needs nothing installed on the device, so it works in a CI container and on
+  # locked-down hardware. Slower, and weaker at text entry — fine for a View app
+  # where tap-then-type behaves.
+  backend: adb
+
+selectors:
+  sources:
+    - "app/src/main/res/layout*/*.xml"
+    - "app/src/main/java/**/*.java"
+    - "app/src/main/res/values/strings.xml"
+
+recipes:
+  smoke:
+    description: Install, launch, walk the main tabs, and assert nothing died
+    steps:
+      - install:
+      - launch:
+      - expect_visible: {id: main_toolbar, timeout_s: 15}
+      - tap: {id: tab_search}
+      - expect_visible: {id: search_input, timeout_s: 10}
+      - type: {id: search_input, text: hello}
+      - press: enter
+      - expect_visible: {id: results_list, timeout_s: 15}
+      - tap: {id: tab_profile}
+      - expect_visible: {text: Profile, timeout_s: 10}
+      - screenshot: profile-tab
+      - expect_no_crash:
+
+  search:
+    description: Search for a term and wait for results
+    params: [query]
+    steps:
+      - tap: {id: tab_search}
+      - type: {id: search_input, text: "{{query}}"}
+      - press: enter
+      # Compose/RecyclerView population is asynchronous; poll rather than sleep.
+      - expect_gone: {id: loading_spinner, timeout_s: 20}
+      - expect_visible: {id: results_list, timeout_s: 5}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "android-driver",
+  "displayName": "android-driver",
+  "version": "0.1.0",
+  "description": "Turns an Android emulator into a deterministic test harness: snapshots for reproducible repros, a compact screen index instead of raw XML, assertions that collect their own evidence, and your app's flows as typed tools.",
+  "author": { "name": "earlzdev" },
+  "homepage": "https://github.com/earlzdev/android-driver",
+  "repository": "https://github.com/earlzdev/android-driver",
+  "license": "MIT",
+  "keywords": ["android", "emulator", "testing", "adb", "uiautomator", "qa", "mobile"],
+  "mcpServers": "./.mcp.json"
+}

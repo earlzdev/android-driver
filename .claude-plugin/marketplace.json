@@ -1,0 +1,17 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "android-driver",
+  "description": "Android emulator testing for Claude Code",
+  "owner": { "name": "earlzdev", "url": "https://github.com/earlzdev" },
+  "plugins": [
+    {
+      "name": "android-driver",
+      "source": "./",
+      "description": "Drive an Android emulator as a deterministic test harness: snapshots, a compact screen index, assertions with evidence, and your app's flows as typed tools.",
+      "category": "testing",
+      "keywords": ["android", "emulator", "testing", "mobile", "qa"],
+      "license": "MIT",
+      "repository": "https://github.com/earlzdev/android-driver"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+# A Jetpack Compose app built with Gradle.
+#
+# Drop this at your project root as `.android-driver.yaml`. The server finds it by
+# walking up from wherever the MCP client started it, and every relative path
+# below resolves against the directory holding this file.
+
+app:
+  package: com.example.composeapp
+  # Optional. Without it the launcher intent is resolved through `monkey`, which
+  # is right for most apps; set it when you want a specific entry point.
+  activity: .MainActivity
+
+build:
+  command: ./gradlew :app:assembleDebug
+  apk_glob: app/build/outputs/apk/debug/*.apk
+  timeout_s: 900
+
+install:
+  # Debug APKs from different branches carry different signing keys, so
+  # reinstalling over one with the other fails. Uninstall first unless you
+  # specifically need the app's data to survive.
+  strategy: uninstall-then-install
+  grant_runtime_perms: true
+
+timing:
+  # Compose recomposition after a long idle is slow on modest hardware; the
+  # first UI query racing it is the most common source of "element not found"
+  # on a screen that is perfectly fine.
+  cold_start_settle_s: 2.5
+  click_settle_s: 0.25
+
+driver:
+  # Compose TextFields need uiautomator2's accessibility SET_TEXT path — a tap
+  # does not reliably move focus and typed text lands in a neighbouring field.
+  # Run `python -m uiautomator2 init` once per device.
+  backend: uiautomator2
+
+selectors:
+  # Scanned so `list_selectors` can show you names that exist, and
+  # `check_recipes` can catch a rename before a flow fails at step four.
+  sources:
+    - "app/src/main/**/*.kt"
+    - "app/src/main/res/values/strings.xml"
+
+recipes:
+  login:
+    description: Sign in and land on the home screen
+    params:
+      email: {required: true, description: Account email}
+      password: {required: true, secret: true}
+      wait_s: {type: int, default: 20, description: How long to wait for the home screen}
+    steps:
+      - launch:
+      - type: {desc: text_field_Email, text: "{{email}}"}
+      - type: {desc: text_field_Password, text: "{{password}}"}
+      - tap: {desc: login_button}
+      - expect_visible: {desc: home_greeting, timeout_s: "{{wait_s}}"}
+      - expect_no_crash:
+
+  logout:
+    description: Sign out from the home screen
+    steps:
+      - scroll_to: {desc: logout_button}
+      - tap: {desc: logout_button}
+      - expect_visible: {desc: login_button, timeout_s: 10}
+
+  fresh_login:
+    description: Wipe app data, then sign in from scratch
+    params:
+      email: {required: true}
+      password: {required: true, secret: true}
+    steps:
+      - clear_data:
+      - run: {recipe: login, email: "{{email}}", password: "{{password}}"}
+      # A snapshot here is the point of the whole exercise: every later repro
+      # attempt starts from this exact state in a couple of seconds.
+      - snapshot_save: logged-in

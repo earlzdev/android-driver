@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "android-driver"
+version = "0.1.0.dev0"
+description = "MCP server that turns an Android emulator into a deterministic, agent-drivable test harness."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["mcp", "android", "emulator", "adb", "uiautomator", "testing", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "mcp>=1.2,<2",
+    "PyYAML>=6.0",
+    "uiautomator2>=3.2,<4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+android-driver = "android_driver.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/android_driver"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: needs a real emulator; skipped unless ANDROID_DRIVER_LIVE=1",
+    "slow: takes tens of seconds (snapshots, recordings)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
