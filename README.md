@@ -197,6 +197,12 @@ uv run pytest              # 104 unit tests, no device needed
 uv run ruff check src tests
 ```
 
+The repo ships a project-scoped `.mcp.json` that runs the server straight from your checkout, so
+opening this directory in Claude Code gives you the tools built from your working tree — edit the
+source, restart the server, and the change is live. The plugin's own MCP config is a separate file,
+`mcp-config.json`, precisely so it does not collide with that: `.mcp.json` at a repo root is read as a
+project config, where `${CLAUDE_PLUGIN_ROOT}` does not resolve.
+
 The unit suite runs against a fake driver over recorded hierarchy fixtures. The live suite needs a
 booted emulator and is skipped otherwise:
 
