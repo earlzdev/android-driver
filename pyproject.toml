@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "android-driver"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "MCP server that turns an Android emulator into a deterministic, agent-drivable test harness."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -46,4 +46,8 @@ jobs:
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: ANDROID_DRIVER_LIVE=1 uv run pytest tests/integration -q
+          script: |
+            adb devices -l
+            adb shell getprop ro.build.version.sdk
+            adb shell getprop ro.product.cpu.abi
+            ANDROID_DRIVER_LIVE=1 uv run pytest tests/integration -v --tb=short -rA
