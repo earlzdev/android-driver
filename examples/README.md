@@ -56,7 +56,15 @@ either, `id` matches a resource id with or without its package prefix, `ref` is 
 **Shorthand.** A verb with one obvious argument takes a bare scalar: `sleep: 2`,
 `press: back`, `tap: "Sign in"` (which means `text`), `snapshot_load: clean`.
 
-**Per-step options.** `retry: 2` re-attempts against a freshly read screen.
+**Per-step options.** Write them beside the verb or inside its argument mapping — both work:
+
+```yaml
+- expect_visible: {desc: home_greeting, timeout_s: 20, retry: 2}   # inside
+- expect_visible: {desc: home_greeting, timeout_s: 20}             # or beside
+  retry: 2
+```
+
+`retry: 2` re-attempts against a freshly read screen.
 `optional: true` lets a step fail without failing the flow. `settle_s: 0.5` waits
 after the step. `label: "confirm the dialog"` renames it in the report.
 

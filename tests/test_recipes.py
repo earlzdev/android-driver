@@ -49,6 +49,22 @@ def test_param_list_shorthand_makes_them_required():
     assert recipe.params[0].required is True
 
 
+def test_step_options_are_accepted_inside_the_verb_mapping():
+    """`retry` beside `timeout_s` is the natural way to write it, and must work.
+
+    Leaking it through as a verb argument fails at runtime with a signature error
+    and, worse, silently drops the retry the recipe author asked for.
+    """
+    step = R.parse("x", {"steps": [{"expect_visible": {"desc": "d", "timeout_s": 15, "retry": 2}}]}).steps[0]
+    assert step.retry == 2
+    assert step.args == {"desc": "d", "timeout_s": 15}
+
+
+def test_step_options_outside_the_mapping_win_over_inside():
+    step = R.parse("x", {"steps": [{"tap": {"text": "OK", "retry": 1}, "retry": 9}]}).steps[0]
+    assert step.retry == 9 and step.args == {"text": "OK"}
+
+
 def test_step_meta_is_not_mistaken_for_a_verb():
     step = R.parse("x", {"steps": [{"tap": "OK", "retry": 2, "optional": True, "label": "confirm"}]}).steps[0]
     assert (step.verb, step.retry, step.optional, step.name) == ("tap", 2, True, "confirm")

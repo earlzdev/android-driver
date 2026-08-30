@@ -188,6 +188,15 @@ def _parse_step(recipe: str, index: int, raw: Any) -> Step:
         if key is None:
             raise RecipeError(f"{where}: `{verb}` needs a mapping of arguments, got {args!r}")
         args = {key: args}
+    else:
+        # `retry` reads naturally beside `timeout_s`, so accept step options written
+        # inside the verb's own mapping as well as beside it. Silently passing them
+        # through as verb arguments instead fails at runtime with a confusing
+        # signature error, and — worse — quietly drops the retry the author asked
+        # for. No verb takes an argument by any of these names.
+        args = dict(args)
+        for key in sorted(STEP_META & set(args)):
+            meta.setdefault(key, args.pop(key))
 
     return Step(
         verb=verb,

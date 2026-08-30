@@ -180,7 +180,8 @@ Steps: `tap` `tap_xy` `long_press` `type` `swipe` `scroll_to` `press` `screensho
 
 `{{param}}` interpolates anywhere in a step's arguments and keeps its type. Per step: `retry: 2`
 re-attempts against a freshly read screen, `optional: true` lets it fail without failing the flow,
-`settle_s` waits afterwards, `label` renames it in the report. Per recipe: `on_failure: continue`.
+`settle_s` waits afterwards, `label` renames it in the report — written either beside the verb or
+inside its argument mapping, whichever reads better. Per recipe: `on_failure: continue`.
 `- run: {recipe: other}` composes them. Parameters marked `secret: true` are redacted from logs and
 reports.
 
