@@ -114,8 +114,19 @@ class Config:
         return self.app.package
 
 
+# Directories never worth descending into when looking for a config.
+_SKIP_DIRS = {"build", ".git", ".gradle", ".idea", "node_modules", "venv", ".venv", "__pycache__"}
+
+
 def find_config_file(start: Path | None = None) -> Path | None:
-    """Walk up from `start` looking for a config file. Returns None if there is none."""
+    """Find the project config: walk up from `start`, then look a short way down.
+
+    Walking up is the normal case. The downward pass exists because the app under
+    test is often *not* at the directory the client was opened in — a repo whose
+    Android app lives in `app/` or `test_app/` is completely ordinary, and without
+    it every tool fails with "no app package configured" while a perfectly good
+    config sits one level below. Ambiguity is refused rather than guessed at.
+    """
     here = (start or Path(os.environ.get("ANDROID_DRIVER_PROJECT", "."))).expanduser().resolve()
     if here.is_file():
         here = here.parent
@@ -124,6 +135,28 @@ def find_config_file(start: Path | None = None) -> Path | None:
             path = candidate / name
             if path.is_file():
                 return path
+    return find_config_below(here)
+
+
+def find_config_below(root: Path, max_depth: int = 3) -> Path | None:
+    """The single config beneath `root`, or None when there is no single answer."""
+    found: list[Path] = []
+    for depth in range(1, max_depth + 1):
+        for name in CONFIG_NAMES:
+            for path in root.glob("/".join(["*"] * depth + [name])):
+                if path.is_file() and not any(part in _SKIP_DIRS for part in path.parts):
+                    found.append(path)
+        if found:
+            break
+    if len(found) == 1:
+        log("config", f"no config at {root}; using the one below it: {found[0]}")
+        return found[0]
+    if found:
+        log(
+            "config",
+            f"{len(found)} configs below {root} and none at it: {[str(p) for p in sorted(found)]}. "
+            "Set ANDROID_DRIVER_PROJECT to the one you mean.",
+        )
     return None
 
 

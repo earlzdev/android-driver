@@ -90,7 +90,11 @@ back to a pure-adb backend that needs nothing installed on the device.
 ## Configure
 
 Optional. Drop `.android-driver.yaml` at your project root — the server finds it by walking up from the
-working directory. Without one, every generic tool still works; you just pass the package name
+working directory, and failing that, by looking up to three levels *down*. That downward pass matters:
+a repo whose Android app lives in `app/` or `test_app/` is completely ordinary, and without it every
+tool fails with "no app package configured" while a perfectly good config sits one directory below.
+Two configs below and none above is refused rather than guessed at — set `ANDROID_DRIVER_PROJECT` to
+say which you mean. The config is read at startup; `reload_config` re-reads it without a reconnect. Without one, every generic tool still works; you just pass the package name
 explicitly and cannot use `build_app` or recipes. Full examples for a Compose app and a View-system
 app are in [`examples/`](examples/).
 
@@ -134,7 +138,7 @@ recipes:
 
 ## Tools
 
-44 of them, plus one per configured recipe.
+45 of them, plus one per configured recipe.
 
 | Group | Tools |
 |---|---|
@@ -144,7 +148,7 @@ recipes:
 | UI | `screen` `tap` `tap_xy` `long_press` `type_text` `swipe` `scroll_to` `press_key` `screenshot` `dump_ui_xml` |
 | Assertions | `expect_visible` `expect_gone` `expect_log` `expect_no_crash` |
 | Runs | `run_start` `run_end` `run_list` `record_start` `record_stop` |
-| Recipes | `list_recipes` `run_recipe` `check_recipes` `list_selectors` |
+| Recipes | `list_recipes` `run_recipe` `check_recipes` `list_selectors` `reload_config` |
 | Logs | `logcat_clear` `logcat_read` |
 | Shell | `shell` |
 

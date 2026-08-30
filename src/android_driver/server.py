@@ -37,6 +37,8 @@ RUNS = Runs(CFG)
 RECORDER = Recorder()
 RECIPES: dict[str, recipes_mod.Recipe] = {}
 _SELECTORS: scan.Selectors | None = None
+# Names this server registered for recipes, so `reload_config` can retire them.
+_RECIPE_TOOLS: list[str] = []
 
 
 def _ok(**fields: Any) -> dict[str, Any]:
@@ -200,14 +202,19 @@ def build_app() -> dict[str, Any]:
 
 
 @mcp.tool()
-def install_app(apk_path: str | None = None, build_first: bool = False) -> dict[str, Any]:
+def install_app(
+    apk_path: str | None = None, build_first: bool = False, pkg: str | None = None
+) -> dict[str, Any]:
     """Install the app: force-stop, uninstall, install, grant runtime permissions, verify.
 
     Uninstall-then-install is the default because debug APKs from different
     branches carry different signing keys, and reinstalling over one with the
     other fails with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+
+    `pkg` overrides the configured package, so an explicit APK can be installed
+    with no project config at all.
     """
-    return _act("install_app", lambda: actions.install_app(SESSION, CFG, apk_path, build_first))
+    return _act("install_app", lambda: actions.install_app(SESSION, CFG, apk_path, build_first, pkg))
 
 
 @mcp.tool()
@@ -569,6 +576,43 @@ def run_recipe(name: str, params: dict[str, Any] | None = None) -> dict[str, Any
 
 
 @mcp.tool()
+def reload_config() -> dict[str, Any]:
+    """Re-read the project config and recipes without restarting the server.
+
+    The config is read once at startup, so editing `.android-driver.yaml` — or
+    creating one — otherwise needs an MCP reconnect before anything picks it up.
+    Recipe tools are re-registered here, but most clients cache the tool list, so
+    a recipe you have just *added* may still need a client-side refresh to appear.
+    The selected device is preserved.
+    """
+
+    def run() -> dict[str, Any]:
+        global CFG, SESSION, RUNS, _SELECTORS
+        if RUNS.current is not None and not RUNS.current.finished:
+            raise RuntimeError(
+                f"run {RUNS.current.id!r} is still open; call `run_end` before reloading"
+            )
+        serial = SESSION.current_serial
+        CFG = config_mod.load()
+        SESSION = Session(CFG)
+        if serial:
+            try:
+                SESSION.select(serial)
+            except Exception as e:
+                log("config", f"could not re-select {serial}: {e}")
+        RUNS = Runs(CFG)
+        _SELECTORS = None
+        return {
+            "config": str(CFG.source) if CFG.source else "defaults (no config file found)",
+            "package": CFG.app.package,
+            "recipe_tools": register_recipes(),
+            "device": SESSION.current_serial,
+        }
+
+    return _act("reload_config", run)
+
+
+@mcp.tool()
 def list_selectors(kind: str | None = None, contains: str | None = None, limit: int = 200) -> dict[str, Any]:
     """Selector literals declared in the project's own sources.
 
@@ -657,14 +701,26 @@ RESERVED_TOOL_NAMES = (
     "press_key", "screenshot", "dump_ui_xml",
     "expect_visible", "expect_gone", "expect_log", "expect_no_crash",
     "run_start", "run_end", "run_list", "record_start", "record_stop",
-    "list_recipes", "run_recipe", "list_selectors", "check_recipes",
+    "list_recipes", "run_recipe", "list_selectors", "check_recipes", "reload_config",
     "logcat_clear", "logcat_read", "shell",
 )
 
 
 def register_recipes() -> list[str]:
-    """Register each configured recipe as its own MCP tool with typed parameters."""
+    """Register each configured recipe as its own MCP tool with typed parameters.
+
+    Existing recipe tools are retired first. FastMCP's `add_tool` returns the
+    *existing* tool when a name is already taken rather than replacing it, so
+    without this a reload would leave every recipe frozen at the definition the
+    server started with — the exact thing a reload is supposed to fix.
+    """
     global RECIPES
+    for name in _RECIPE_TOOLS:
+        try:
+            mcp._tool_manager.remove_tool(name)  # no public API for this yet
+        except Exception as e:
+            log("recipes", f"could not retire the old {name!r} tool: {e}")
+    _RECIPE_TOOLS.clear()
     RECIPES = recipes_mod.load_all(CFG)
     reserved = set(RESERVED_TOOL_NAMES)
     registered: list[str] = []
@@ -677,6 +733,7 @@ def register_recipes() -> list[str]:
             continue
         reserved.add(tool_name)
         registered.append(tool_name)
+        _RECIPE_TOOLS.append(tool_name)
     if registered:
         log("recipes", f"registered {len(registered)} recipe tool(s): {', '.join(registered)}")
     return registered

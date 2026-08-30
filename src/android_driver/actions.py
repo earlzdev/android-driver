@@ -152,13 +152,17 @@ def build_app(cfg: Config) -> dict:
 
 
 def install_app(
-    session: Session, cfg: Config, apk_path: str | None = None, build_first: bool = False
+    session: Session,
+    cfg: Config,
+    apk_path: str | None = None,
+    build_first: bool = False,
+    pkg: str | None = None,
 ) -> dict:
     apk = build_mod.build(cfg) if build_first else build_mod.resolve_apk(cfg, apk_path)
     result = adb.install(
         session.serial,
         apk,
-        cfg.package,
+        pkg or cfg.package,
         strategy=cfg.install.strategy,
         grant_runtime_perms=cfg.install.grant_runtime_perms,
         appops=cfg.install.appops or None,
