@@ -1,0 +1,155 @@
+# FlakyDemo — a deliberately unreliable app for exercising android-driver.
+#
+# Selectors: every interactive element carries the same string as a Compose `testTag` *and* as a
+# `contentDescription` (see `Modifier.driverTag` in ui/Common.kt). Recipes below use `desc:` because
+# that is the pool `list_selectors` scans and `check_recipes` validates against; `id:` resolves the
+# same elements at runtime, since the root opts into `testTagsAsResourceId`.
+
+app:
+  package: com.earldev.flakydemo
+  activity: .MainActivity
+
+build:
+  command: ./gradlew :app:assembleDebug
+  apk_glob: app/build/outputs/apk/debug/*.apk
+  timeout_s: 900
+
+install:
+  strategy: uninstall-then-install
+  grant_runtime_perms: true
+
+timing:
+  # Every screen logs `screen=<name>` on entry, and the catalog debounces its search, so give
+  # recomposition a moment before the first query.
+  cold_start_settle_s: 2.5
+  click_settle_s: 0.3
+
+driver:
+  # Compose TextFields: the accessibility SET_TEXT path is the only reliable one here.
+  backend: uiautomator2
+
+selectors:
+  sources:
+    - "app/src/main/**/*.kt"
+    - "app/src/main/res/values/strings.xml"
+
+recipes:
+
+  login:
+    description: Sign in and land on the dashboard
+    params:
+      email: {default: "demo@test.dev", description: "Any address containing '@'; it is validated untrimmed"}
+      password: {default: "hunter2", secret: true, description: "Six characters or more"}
+      wait_s: {type: int, default: 15}
+    steps:
+      - launch:
+      - type: {desc: text_field_Email, text: "{{email}}"}
+      - type: {desc: text_field_Password, text: "{{password}}"}
+      - tap: {desc: login_button}
+      # BUG-LOG-01 fails roughly one attempt in three with a network error, so retry once against a
+      # freshly read screen before giving up.
+      - expect_visible: {desc: dashboard_greeting, timeout_s: "{{wait_s}}", retry: 2}
+      - expect_no_crash:
+
+  login_seeded:
+    description: Sign in with the flake generator pinned to a seed, so the session replays exactly
+    params:
+      seed: {type: int, required: true, description: Any non-negative integer; the same seed replays the same failures}
+      email: {default: "demo@test.dev"}
+      password: {default: "hunter2", secret: true}
+    steps:
+      - force_stop:
+      - logcat_clear:
+      - shell: "am start -n com.earldev.flakydemo/.MainActivity --el flake_seed {{seed}} --ez reset_store true"
+      - sleep: 2.5
+      - expect_log: {pattern: "flake init seed={{seed}}", timeout_s: 10}
+      - type: {desc: text_field_Email, text: "{{email}}"}
+      - type: {desc: text_field_Password, text: "{{password}}"}
+      - tap: {desc: login_button}
+
+  login_deterministic:
+    description: Sign in with every flaky bug switched off — the baseline a repro compares against
+    params:
+      email: {default: "demo@test.dev"}
+      password: {default: "hunter2", secret: true}
+    steps:
+      - force_stop:
+      - shell: "am start -n com.earldev.flakydemo/.MainActivity --ez flake_enabled false --ez reset_store true"
+      - sleep: 2.5
+      - type: {desc: text_field_Email, text: "{{email}}"}
+      - type: {desc: text_field_Password, text: "{{password}}"}
+      - tap: {desc: login_button}
+      - expect_visible: {desc: dashboard_greeting, timeout_s: 15}
+
+  rotate_landscape:
+    description: Lock the device to landscape
+    steps:
+      - shell: "settings put system accelerometer_rotation 0"
+      - shell: "settings put system user_rotation 1"
+      - sleep: 2
+
+  rotate_portrait:
+    description: Lock the device back to portrait
+    steps:
+      - shell: "settings put system accelerometer_rotation 0"
+      - shell: "settings put system user_rotation 0"
+      - sleep: 2
+
+  open_catalog:
+    description: From the dashboard, open the catalog
+    steps:
+      - tap: {desc: nav_catalog_button}
+      - expect_visible: {desc: catalog_root, timeout_s: 10}
+
+  search_catalog:
+    description: Type a query into the catalog search box and wait for the list to settle
+    params:
+      query: {required: true}
+    steps:
+      - type: {desc: search_field, text: "{{query}}"}
+      # BUG-CAT-01: each keystroke starts an uncancelled job, so the count can settle late.
+      - sleep: 1.5
+      - expect_visible: {desc: catalog_summary, timeout_s: 10}
+
+  open_item:
+    description: Open one catalog row by item id
+    params:
+      item_id: {type: int, required: true}
+    steps:
+      - scroll_to: {desc: "catalog_item_{{item_id}}"}
+      - tap: {desc: "catalog_item_{{item_id}}"}
+      - expect_visible: {desc: detail_name, timeout_s: 10}
+
+  open_settings:
+    description: From the dashboard, open settings
+    steps:
+      - tap: {desc: nav_settings_button}
+      - expect_visible: {desc: settings_root, timeout_s: 10}
+
+  save_settings:
+    description: Accept the terms and save, which is the only path that actually persists anything
+    steps:
+      - scroll_to: {desc: terms_checkbox}
+      - tap: {desc: terms_checkbox}
+      - scroll_to: {desc: save_button}
+      - tap: {desc: save_button}
+      # BUG-SET-03 still drops about one write in five without saying so — check `stored_summary`.
+      - expect_visible: {desc: settings_banner, timeout_s: 5}
+
+  smoke:
+    description: Walk all five screens and assert nothing crashed
+    params:
+      email: {default: "demo@test.dev"}
+      password: {default: "hunter2", secret: true}
+    steps:
+      - run: {recipe: login_deterministic, email: "{{email}}", password: "{{password}}"}
+      - expect_visible: {desc: stat_orders, timeout_s: 10}
+      - run: {recipe: open_catalog}
+      - run: {recipe: search_catalog, query: "Cedar"}
+      - run: {recipe: open_item, item_id: 6}
+      - expect_visible: {desc: detail_name, timeout_s: 10}
+      - press: back
+      - press: back
+      - run: {recipe: open_settings}
+      - scroll_to: {desc: save_button}
+      - expect_no_crash:
