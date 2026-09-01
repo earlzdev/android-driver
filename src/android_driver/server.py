@@ -123,7 +123,16 @@ def start_emulator(
 @mcp.tool()
 def stop_emulator(serial: str | None = None) -> dict[str, Any]:
     """Shut down a running emulator (defaults to the selected device)."""
-    return _act("stop_emulator", lambda: emulator.stop(serial or SESSION.serial))
+
+    def run() -> dict[str, Any]:
+        target = serial or SESSION.serial
+        result = emulator.stop(target)
+        if target == SESSION.current_serial:
+            # The device this session is holding a connection to is now gone.
+            SESSION.reconnect()
+        return result
+
+    return _act("stop_emulator", run)
 
 
 @mcp.tool()
@@ -149,11 +158,19 @@ def snapshot_save(name: str) -> dict[str, Any]:
 
 @mcp.tool()
 def snapshot_load(name: str) -> dict[str, Any]:
-    """Restore the emulator to a previously saved snapshot."""
+    """Restore the emulator to a previously saved snapshot, and wait until it is drivable.
+
+    Two things to know. The restore rewinds the device's clock to the moment the
+    snapshot was saved, so logcat timestamps afterwards run behind the host's —
+    compare them to each other, not to your watch. And the restored image carries
+    the log buffer it was saved with, so open the run *after* this call:
+    `run_start` clears logcat, and a crash that predates the snapshot would
+    otherwise be re-reported on every single attempt.
+    """
 
     def run() -> dict[str, Any]:
         result = emulator.snapshot_load(SESSION.serial, name)
-        SESSION.invalidate()
+        SESSION.reconnect()
         return result
 
     return _act("snapshot_load", run)
@@ -722,7 +739,7 @@ def register_recipes() -> list[str]:
             log("recipes", f"could not retire the old {name!r} tool: {e}")
     _RECIPE_TOOLS.clear()
     RECIPES = recipes_mod.load_all(CFG)
-    reserved = set(RESERVED_TOOL_NAMES)
+    reserved: set[str] = set(RESERVED_TOOL_NAMES)
     registered: list[str] = []
     for name, recipe in RECIPES.items():
         tool_name = name if name not in reserved else f"recipe_{name}"

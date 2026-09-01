@@ -4,24 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from android_driver import server
-from android_driver.run import Runs
-
-
-@pytest.fixture
-def wired(monkeypatch, cfg, session):
-    """Point the module-level server state at the fake device."""
-    runs = Runs(cfg)
-    monkeypatch.setattr("android_driver.run.adb.device_info", lambda serial: {"serial": serial})
-    monkeypatch.setattr("android_driver.run.adb.logcat_clear", lambda serial: None)
-    monkeypatch.setattr("android_driver.run.adb.logcat_dump", lambda serial, **kw: [])
-    monkeypatch.setattr(server, "CFG", cfg)
-    monkeypatch.setattr(server, "SESSION", session)
-    monkeypatch.setattr(server, "RUNS", runs)
-    monkeypatch.setattr(server, "RECIPES", {})
-    return runs
 
 
 def tool_names() -> set[str]:

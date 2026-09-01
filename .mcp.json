@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "android-driver-dev": {
-      "command": "uvx",
-      "args": ["--from", ".", "android-driver"]
+      "command": "uv",
+      "args": ["run", "android-driver"]
     }
   }
 }

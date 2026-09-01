@@ -7,8 +7,8 @@ loop an AI agent actually needs to run — *build → install → drive → asse
 is opinionated about the four things that make that loop work:
 
 **1. Snapshots, so a repro is actually reproducible.** `snapshot_save` freezes the emulator's exact
-state; `snapshot_load` restores it in a couple of seconds (measured: 1.3s on a Pixel 7 AVD).
-Reinstalling the app and navigating back to the starting screen costs 30–90s and drifts. An agent
+state; `snapshot_load` restores it and waits until the device is drivable again (measured: 1.8–2.2s on
+a Pixel 7 AVD). Reinstalling the app and navigating back costs 30–90s and drifts. An agent
 testing thirty variations of a bug hypothesis needs the cheap, identical option.
 
 **2. A screen index instead of a wall of XML.** A raw `uiautomator dump` is 50–200 KB per screen —
@@ -56,23 +56,28 @@ claude plugin marketplace add earlzdev/android-driver
 claude plugin install android-driver@android-driver
 ```
 
-That is all — the plugin builds the Python server on demand with `uvx`, so there is no venv to manage
-and nothing to reinstall when it updates. It also passes your project directory to the server, so
-`.android-driver.yaml` is found no matter where Claude was launched from.
+That is all — the plugin builds the Python server from source on demand with `uv run`, so there is no
+venv to manage and an update takes effect the next time Claude starts. It also passes your project
+directory to the server, so `.android-driver.yaml` is found no matter where Claude was launched from.
+
+(`uvx --from <path>` looks equivalent and is not: it caches the built wheel against `pyproject.toml`'s
+timestamp, so an update that changes only `src/` keeps serving the old code — silently, with a
+normal-looking startup.)
 
 **Or as a plain MCP server**, if you would rather not install a plugin:
 
 ```bash
 git clone https://github.com/earlzdev/android-driver.git ~/src/android-driver
-claude mcp add android-driver -- uvx --from ~/src/android-driver android-driver
+claude mcp add android-driver \
+  -e ANDROID_DRIVER_PROJECT="$PWD" \
+  -- uv run --project ~/src/android-driver android-driver
 ```
 
-Run that from the project you want to test, and add `-s user` to register it for every project. Note
-that the standalone route discovers `.android-driver.yaml` by walking up from the directory the server
-was launched in, so a launcher that changes the working directory (notably `uv run --directory`)
-breaks discovery silently — you get the generic tools and none of your recipes. Set
-`ANDROID_DRIVER_PROJECT=/path/to/your/project` in that case. The startup line on stderr always says
-which config it loaded.
+Run that from the project you want to test, and add `-s user` to register it for every project.
+`ANDROID_DRIVER_PROJECT` is what makes discovery independent of the working directory; without it the
+server walks up from wherever it happened to start, which a launcher that changes directory (notably
+`uv run --directory`) gets wrong silently — you get the generic tools and none of your recipes. The
+startup line on stderr always says which config it loaded.
 
 Requirements: `adb` on `PATH`, the Android SDK's `emulator` binary, Python ≥ 3.10. For the faster
 uiautomator2 backend, run `python -m uiautomator2 init` once per device; without it the server falls

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "android-driver": {
-      "command": "uvx",
-      "args": ["--from", "${CLAUDE_PLUGIN_ROOT}", "android-driver"],
+      "command": "uv",
+      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}", "android-driver"],
       "env": {
         "ANDROID_DRIVER_PROJECT": "${CLAUDE_PROJECT_DIR}"
       }

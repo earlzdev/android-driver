@@ -224,10 +224,28 @@ def snapshot_save(serial: str, name: str) -> dict:
     return {"ok": True, "serial": serial, "snapshot": name, "seconds": round(time.monotonic() - started, 1)}
 
 
-def snapshot_load(serial: str, name: str) -> dict:
+def snapshot_load(serial: str, name: str, settle_timeout_s: int = 120) -> dict:
+    """Restore `name`, then wait until the device can actually be driven again.
+
+    The restore swaps the running system out wholesale. For a second or two after
+    the console returns, `adb` reports the device `offline` and the uiautomator
+    server is a process from the restored image rather than the one we were
+    talking to. Returning at that point hands the caller a device whose next call
+    dies with `RemoteDisconnected` or `device offline` — which reads as a broken
+    app, three steps into a flow, and sends you debugging the wrong thing.
+    """
     started = time.monotonic()
     _snapshot_cmd(serial, "load", name)
-    return {"ok": True, "serial": serial, "snapshot": name, "seconds": round(time.monotonic() - started, 1)}
+    # Let the restore drop the device before asking whether it is back: polling
+    # immediately can still observe the pre-restore connection and pass at once.
+    time.sleep(1.0)
+    ready = wait_for_boot(serial, timeout_s=settle_timeout_s)
+    seconds = round(time.monotonic() - started, 1)
+    if not ready.get("ok"):
+        raise EmulatorError(
+            f"{serial} did not come back within {settle_timeout_s}s after loading snapshot {name!r}"
+        )
+    return {"ok": True, "serial": serial, "snapshot": name, "seconds": seconds}
 
 
 def snapshot_delete(serial: str, name: str) -> dict:

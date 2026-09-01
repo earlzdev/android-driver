@@ -49,12 +49,25 @@ class Session:
         self._serial = serial
         log("session", f"device pinned to {serial}")
 
-    def _reset(self) -> None:
+    def reconnect(self) -> None:
+        """Drop the device connection so the next call rebuilds it, keeping the device pinned.
+
+        Restoring a snapshot swaps the whole OS out from under us and takes the
+        on-device uiautomator server with it. The connection we are holding does
+        not notice: it fails on the *next* request with `RemoteDisconnected`,
+        which reads as a broken app rather than a stale session.
+        """
         if self._driver is not None:
-            self._driver.close()
+            try:
+                self._driver.close()
+            except Exception as e:  # the far end is usually already gone
+                log("session", f"ignoring error while closing the driver: {e}")
         self._driver = None
-        self._serial = None
         self.invalidate()
+
+    def _reset(self) -> None:
+        self.reconnect()
+        self._serial = None
 
     @property
     def driver(self) -> Driver:
