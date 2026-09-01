@@ -1,107 +1,130 @@
-# android_driver
+# android-driver
 
-An MCP server that turns an Android emulator into a **deterministic, agent-drivable test harness**.
+**Drive an Android emulator as a deterministic test harness — from Claude Code.**
 
-Most Android MCP servers are adb wrappers: tap, swipe, screenshot, dump XML. This one is built for the
-loop an AI agent actually needs to run — *build → install → drive → assert → reset → repeat* — and it
-is opinionated about the four things that make that loop work:
+[![CI](https://github.com/earlzdev/android-driver/actions/workflows/ci.yml/badge.svg)](https://github.com/earlzdev/android-driver/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-**1. Snapshots, so a repro is actually reproducible.** `snapshot_save` freezes the emulator's exact
-state; `snapshot_load` restores it and waits until the device is drivable again (measured: 1.8–2.2s on
-a Pixel 7 AVD). Reinstalling the app and navigating back costs 30–90s and drifts. An agent
-testing thirty variations of a bug hypothesis needs the cheap, identical option.
+You ask an agent to reproduce a bug in your Android app. It dumps 80 KB of accessibility XML into its
+own context, taps something that turns out to be the wrong element, and when the bug does not appear
+it cannot repeat what it just did — because the app is now three screens deep in a state nobody
+recorded.
 
-**2. A screen index instead of a wall of XML.** A raw `uiautomator dump` is 50–200 KB per screen —
-tens of thousands of tokens for a model that just wants to know what it can tap. `screen` returns:
+android-driver is built for that loop instead: **build → install → drive → assert → reset → repeat.**
 
 ```
-device=emulator-5554 app=com.android.settings/.Settings screen=1080x2400 driver=uiautomator2
-#5 [Scroll] id=settings_homepage_container (scrollable) @(540,1236)
-#6 [Image] desc="Profile picture, double tap to open Google Account" id=account_avatar @(954,346)
-#7 [Text] "Settings" id=homepage_title @(235,472)
+> reproduce the crash when the bio field goes over 100 characters
+
+  snapshot_load("clean")                          1.9s
+  open_settings()                                 ok
+  type_text(id=text_field_Bio, text=110 chars)    ok
+  expect_log("StringIndexOutOfBoundsException")   ok — matched
+  expect_no_crash()                               FAILED — 1 crash record
+
+  runs/20260901-080304-repro-set-06/report.md
+  → java.lang.StringIndexOutOfBoundsException: begin 0, end 120, length 110
+      at ...screens.SettingsScreenKt.SettingsScreen$textFields(SettingsScreen.kt:149)
 ```
 
-Then `tap(ref="#7")`. Two orders of magnitude smaller, and it reads like a menu. The raw tree is still
-there behind `dump_ui_xml` for when you genuinely need it.
+Three attempts from the same snapshot, three identical results, and a directory of evidence to point
+at. That is the whole idea.
 
-**3. Assertions that collect their own evidence.** `expect_visible` polls, so it is safe right after a
-tap and will not flake on an animation; when it fails it hands back the screen index that *was* there,
-plus a screenshot and a hierarchy dump on disk. `expect_no_crash` reads the `crash` buffer as well as
-`main`, because a native abort never reaches `main` at all. Wrap a sequence in `run_start` /
-`run_end` and you get `runs/<id>/` with a timeline, a report, the logcat slice for exactly that
-window, and every failure artifact — so an agent can cite a directory instead of describing what it
-saw.
-
-**4. Your flows as first-class tools.** Six steps that every test starts with — sign in, create an
-order, join a call — go in `.android-driver.yaml` once and become real MCP tools with typed parameters.
-An agent sees `login(email, password)` in its tool list rather than rediscovering the flow from a
-screen dump every session. Recipes call the same code path as the hand-driven tools, so the two
-cannot drift apart.
-
-Plus the device knowledge that costs an afternoon each to learn: uninstall-then-install instead of
-`pm install -r` (different debug keys across branches otherwise fail with
-`INSTALL_FAILED_UPDATE_INCOMPATIBLE`); checking `mInputShown` before pressing Back, so dismissing the
-keyboard never dismisses the dialog behind it; writing to Compose `TextField`s through the
-accessibility node rather than tap-then-type, which lands text in the wrong field; a post-click settle
-before the next query; an `appops` pass for OEM permission overlays that keep blocking after
-`pm grant` reports success.
+---
 
 ## Install
 
-It is a Claude Code plugin: one install brings the tools, a skill that teaches Claude the testing
-loop, and three slash commands.
+It is a Claude Code plugin: one install brings the tools, a skill that teaches Claude the loop, and
+three slash commands.
 
 ```bash
 claude plugin marketplace add earlzdev/android-driver
 claude plugin install android-driver@android-driver
 ```
 
-That is all — the plugin builds the Python server from source on demand with `uv run`, so there is no
-venv to manage and an update takes effect the next time Claude starts. It also passes your project
-directory to the server, so `.android-driver.yaml` is found no matter where Claude was launched from.
+There is no venv to manage — the plugin builds the Python server from source on demand, and passes
+your project directory to it so your config is found wherever Claude was launched from.
 
-(`uvx --from <path>` looks equivalent and is not: it caches the built wheel against `pyproject.toml`'s
-timestamp, so an update that changes only `src/` keeps serving the old code — silently, with a
-normal-looking startup.)
-
-**Or as a plain MCP server**, if you would rather not install a plugin:
-
-```bash
-git clone https://github.com/earlzdev/android-driver.git ~/src/android-driver
-claude mcp add android-driver \
-  -e ANDROID_DRIVER_PROJECT="$PWD" \
-  -- uv run --project ~/src/android-driver android-driver
-```
-
-Run that from the project you want to test, and add `-s user` to register it for every project.
-`ANDROID_DRIVER_PROJECT` is what makes discovery independent of the working directory; without it the
-server walks up from wherever it happened to start, which a launcher that changes directory (notably
-`uv run --directory`) gets wrong silently — you get the generic tools and none of your recipes. The
-startup line on stderr always says which config it loaded.
-
-Requirements: `adb` on `PATH`, the Android SDK's `emulator` binary, Python ≥ 3.10. For the faster
-uiautomator2 backend, run `python -m uiautomator2 init` once per device; without it the server falls
+**Requirements:** `adb` and the Android SDK's `emulator` on `PATH`, Python ≥ 3.10. For the faster
+uiautomator2 backend run `python -m uiautomator2 init` once per device; without it the server falls
 back to a pure-adb backend that needs nothing installed on the device.
 
-## What the plugin adds
+Prefer a plain MCP server, or not using Claude Code at all? See
+[docs/installation.md](docs/installation.md).
 
-| | |
-|---|---|
-| `/android-driver:setup` | Detects your `applicationId`, build command and UI toolkit, writes a starter `.android-driver.yaml`, boots an emulator and proves the loop works |
-| `/android-driver:repro` | Reproduces a bug by varying one thing at a time from a snapshot, and hands back a run directory as evidence |
-| `/android-driver:smoke` | Build, install, walk the main flows, assert nothing crashed |
-| `android-testing` skill | Loads automatically when Claude is driving the app, so it reaches for `screen` over raw XML and snapshots over slow resets without being told |
+## Quickstart
+
+```
+/android-driver:setup
+```
+
+It checks your toolchain, finds your `applicationId` and build command, detects whether you are on
+Compose or Views, writes a starter `.android-driver.yaml`, boots an emulator and proves the loop
+works. Then:
+
+```
+/android-driver:smoke                    # build, install, walk the main flows, assert nothing broke
+/android-driver:repro <what is broken>   # reproduce it from a snapshot and leave evidence
+```
+
+Or just talk to it — the `android-testing` skill loads automatically when a task involves driving the
+app, so "check that login still works on a fresh install" does the right thing without ceremony.
+
+## Why it works this way
+
+Four decisions do most of the work.
+
+**Snapshots, so a repro is actually reproducible.** `snapshot_save` freezes the emulator's exact
+state; `snapshot_load` restores it and waits until the device is genuinely drivable again — 1.8–2.2s
+measured on a Pixel 7 AVD. Reinstalling and re-navigating costs 30–90s *and drifts a little each
+time*. An agent testing thirty variations of a hypothesis needs the cheap, identical option: the
+difference between two attempts only means something if everything else was the same.
+
+**A screen index instead of a wall of XML.** A raw `uiautomator dump` is 50–200 KB per screen — tens
+of thousands of tokens for a model that just wants to know what it can tap. `screen` returns this:
+
+```
+device=emulator-5554 app=com.example.app/.MainActivity screen=1080x2400 driver=uiautomator2
+#5  [Scroll]   id=settings_container (scrollable)     @(540,1236)
+#7  [Text]     "Settings"  id=homepage_title          @(235,472)
+#18 [EditText] "" id=text_field_Bio                   @(540,1018)
+```
+
+Then `tap(ref="#7")`. Two orders of magnitude smaller, and it reads like a menu. The raw tree is
+still there behind `dump_ui_xml` for when you genuinely need it.
+
+**Assertions that collect their own evidence.** `expect_visible` polls, so it is safe immediately
+after a tap and will not flake on an animation; when it fails it hands back the screen index that
+*was* there, plus a screenshot and hierarchy dump on disk. `expect_no_crash` reads the `crash` buffer
+as well as `main`, because a native abort never reaches `main` at all. Wrap a sequence in
+`run_start` / `run_end` and you get `runs/<id>/` holding a timeline, a report, the logcat slice for
+exactly that window, and every failure artifact — so an agent cites a directory instead of describing
+what it saw.
+
+**Your flows as first-class tools.** The six steps every test starts with — sign in, create an order,
+join a call — go into `.android-driver.yaml` once and become real MCP tools with typed parameters. An
+agent sees `login(email, password)` in its tool list rather than rediscovering the flow from a screen
+dump every session. Recipes run the same code path as the hand-driven tools, so the two cannot drift.
+
+<details>
+<summary>Plus the device knowledge that costs an afternoon each to learn</summary>
+
+- **Uninstall-then-install**, not `pm install -r` — debug APKs from different branches carry
+  different signing keys and otherwise fail with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+- **Check `mInputShown` before pressing Back**, so dismissing the keyboard never dismisses the
+  dialog behind it.
+- **Write to Compose `TextField`s through the accessibility node**, not tap-then-type, which lands
+  text in the wrong field.
+- **Settle after a click** before the next query, or you read pre-animation state.
+- **An `appops` pass** for OEM permission overlays that keep blocking after `pm grant` reports
+  success.
+
+</details>
 
 ## Configure
 
-Optional. Drop `.android-driver.yaml` at your project root — the server finds it by walking up from the
-working directory, and failing that, by looking up to three levels *down*. That downward pass matters:
-a repo whose Android app lives in `app/` or `test_app/` is completely ordinary, and without it every
-tool fails with "no app package configured" while a perfectly good config sits one directory below.
-Two configs below and none above is refused rather than guessed at — set `ANDROID_DRIVER_PROJECT` to
-say which you mean. The config is read at startup; `reload_config` re-reads it without a reconnect. Without one, every generic tool still works; you just pass the package name
-explicitly and cannot use `build_app` or recipes. Full examples for a Compose app and a View-system
-app are in [`examples/`](examples/).
+`.android-driver.yaml` at your project root is what makes a generic tool specific to your app.
+`/android-driver:setup` writes a starter for you.
 
 ```yaml
 app:
@@ -112,38 +135,33 @@ build:
   command: ./gradlew :app:assembleDebug
   apk_glob: app/build/outputs/apk/debug/*.apk
 
-install:
-  strategy: uninstall-then-install  # or: reinstall
-  grant_runtime_perms: true
-  appops: [CAMERA, RECORD_AUDIO]    # OEM overlay workarounds
-
-timing:
-  cold_start_settle_s: 2.0
-  click_settle_s: 0.25
-
 driver:
-  backend: auto                     # auto | uiautomator2 | adb
+  backend: auto                    # auto | uiautomator2 | adb
 
-selectors:                          # scanned so a typo is a warning, not a mystery
+selectors:                         # scanned, so a typo is a warning rather than a mystery
   sources: ["app/src/main/**/*.kt"]
 
-recipes:
+recipes:                           # each becomes an MCP tool with typed parameters
   login:
-    description: Sign in and land on the home screen
-    params:
-      email: {required: true}
-      password: {required: true, secret: true}
+    params: {email: {required: true}, password: {required: true, secret: true}}
     steps:
       - launch:
       - type: {desc: text_field_Email, text: "{{email}}"}
-      - type: {desc: text_field_Password, text: "{{password}}"}
       - tap: {desc: login_button}
       - expect_visible: {desc: home_greeting, timeout_s: 20}
 ```
 
+The file is optional: with no config every generic tool still works — you pass `pkg=` explicitly and
+lose `build_app` and recipes. It is found by walking up from your project and then, failing that, up
+to three levels *down*, so an app in `app/` or `android/` is discovered without configuration.
+
+Full reference: **[docs/configuration.md](docs/configuration.md)** · recipe and step syntax:
+**[docs/recipes.md](docs/recipes.md)** · worked examples for Compose and View projects:
+[`examples/`](examples/).
+
 ## Tools
 
-45 of them, plus one per configured recipe.
+45, plus one per configured recipe.
 
 | Group | Tools |
 |---|---|
@@ -157,78 +175,65 @@ recipes:
 | Logs | `logcat_clear` `logcat_read` |
 | Shell | `shell` |
 
-`shell` is unrestricted on purpose — this is a development tool, not a sandbox. It can wipe device
-data, kill processes and read files. Point it at emulators and test devices, not at anything you care
-about.
+> [!WARNING]
+> `shell` is unrestricted on purpose — this is a development tool, not a sandbox. It can wipe device
+> data, kill processes and read files. Point it at emulators and test devices, not at anything you
+> care about.
 
-## The loop
+### The loop, in tool calls
 
-```
-start_emulator(avd="Pixel_7")   # reuses it if already running
+```python
+start_emulator(avd="Pixel_7")   # reuses one that is already running
 install_app(build_first=True)
 launch_app()
 snapshot_save("clean")          # ← the state every attempt returns to
+
 run_start("issue 412: crash on empty search")
-  … tap / type / expect_visible …
+  … login() / tap / type_text / expect_visible …
   expect_no_crash()
 run_end()                       # → runs/<id>/report.md
+
 snapshot_load("clean")          # next variation, from identical state
 ```
 
 [`docs/agent-guide.md`](docs/agent-guide.md) is a `CLAUDE.md` fragment you can drop into a project so
 an agent picks this up without being told.
 
-## Recipes
+## Try it without your own app
 
-Each recipe in your config is registered as its own MCP tool with typed parameters, and is also
-reachable through the generic `run_recipe(name, params)`.
+The repo ships **[FlakyDemo](test_app/)** — a Compose app with five screens and **27 deliberately
+planted bugs**, each documented in [`test_app/BUGS.md`](test_app/BUGS.md) with what was actually
+observed rather than what was intended. Crashes, races, state lost on rotation, a Save button that
+reports success and silently does nothing, and several bugs that only show up one run in three.
 
-Steps: `tap` `tap_xy` `long_press` `type` `swipe` `scroll_to` `press` `screenshot` · `build` `install`
-`uninstall` `launch` `force_stop` `clear_data` · `snapshot_save` `snapshot_load` · `expect_visible`
-`expect_gone` `expect_log` `expect_no_crash` · `sleep` `shell` `logcat_clear` `run`.
+Its flake generator is seeded, so `--el flake_seed 42` replays the same failures every time and
+`--ez flake_enabled false` turns them all off for a clean baseline. It ships with 11 recipes.
 
-`{{param}}` interpolates anywhere in a step's arguments and keeps its type. Per step: `retry: 2`
-re-attempts against a freshly read screen, `optional: true` lets it fail without failing the flow,
-`settle_s` waits afterwards, `label` renames it in the report — written either beside the verb or
-inside its argument mapping, whichever reads better. Per recipe: `on_failure: continue`.
-`- run: {recipe: other}` composes them. Parameters marked `secret: true` are redacted from logs and
-reports.
-
-`list_selectors` shows the `testTag` / `contentDescription` / `android:id` / string-resource literals
-the project's own sources declare, and `check_recipes` cross-checks every recipe against them — so a
-rename shows up as a warning rather than as "element not found" three steps into a flow. See
-[`examples/README.md`](examples/README.md) for the full syntax.
+It is the fastest way to see what the tool is for — and a fair test of whether it earns its keep,
+since a good number of the planted bugs are the kind a tap-and-screenshot agent cannot catch at all.
+The Settings screen alone reports "Saved" in the UI while the log says
+`outcome=noop reason=terms_not_accepted` and nothing was written.
 
 ## Development
 
 ```bash
 uv sync --extra dev
-uv run pytest              # 104 unit tests, no device needed
+uv run pytest              # 129 unit tests against a fake driver, no device needed
 uv run ruff check src tests
 ```
 
-The repo ships a project-scoped `.mcp.json` that runs the server straight from your checkout, so
-opening this directory in Claude Code gives you the tools built from your working tree — edit the
-source, restart the server, and the change is live. The plugin's own MCP config is a separate file,
-`mcp-config.json`, precisely so it does not collide with that: `.mcp.json` at a repo root is read as a
-project config, where `${CLAUDE_PLUGIN_ROOT}` does not resolve.
-
-The unit suite runs against a fake driver over recorded hierarchy fixtures. The live suite needs a
-booted emulator and is skipped otherwise:
-
-```bash
-ANDROID_DRIVER_LIVE=1 uv run pytest tests/integration
-```
+Setup, the live suite, and the packaging pitfalls worth knowing about are in
+**[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## Status
 
-Early but working end to end. Emulator lifecycle, snapshots, both driver backends, the screen index,
-assertions, run bundles, screen recording, recipes and selector scanning are all implemented and
-covered by tests; the live suite passes against a Pixel 7 AVD. Packaged as a Claude Code plugin with a
-skill and three commands.
+Early, but working end to end. Emulator lifecycle, snapshots, both driver backends, the screen index,
+assertions, run bundles, screen recording, recipes and selector scanning are implemented and covered
+by tests; the live suite passes against a Pixel 7 AVD. Packaged as a Claude Code plugin with a skill
+and three commands.
 
-Not published to PyPI yet — the plugin builds from source, so it does not need to be. See
-[docs/roadmap.md](docs/roadmap.md).
+Not on PyPI — the plugin builds from source, so it does not need to be. Roadmap:
+[docs/roadmap.md](docs/roadmap.md). Issues and pull requests welcome.
 
 ## License
 

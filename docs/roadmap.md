@@ -33,7 +33,7 @@ compact screen index, core tool surface.
 
 - ✅ Example configs for a Compose app and a View-system app
 - ✅ An agent-facing `CLAUDE.md` fragment consumers can drop in (`docs/agent-guide.md`)
-- ✅ Test suite: 104 unit tests against recorded hierarchy fixtures and a fake driver, plus a live
+- ✅ Test suite: 129 unit tests against recorded hierarchy fixtures and a fake driver, plus a live
   suite gated on `ANDROID_DRIVER_LIVE=1`
 - ✅ GitHub Actions running the unit suite plus a headless-emulator smoke test
 - ⬜ PyPI publish
