@@ -1,0 +1,73 @@
+name: Release
+
+# Tag-triggered, so a release is a deliberate act with a name attached:
+#     git tag v0.1.0 && git push --tags
+#
+# Publishing uses PyPI Trusted Publishing (OIDC), so there is no API token in a
+# repository secret, on a laptop, or in a shell history. The `pypi` environment
+# is what PyPI's publisher config is bound to; a workflow on another branch or
+# under another name cannot mint a token for this project.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    name: build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra dev
+      - run: uv run ruff check src tests
+      - run: uv run pytest -q
+
+      # A tag that disagrees with pyproject.toml would publish a version nobody
+      # can find from the repo, and the number cannot be reused afterwards.
+      - name: Tag must match the packaged version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(uv run python -c "import importlib.metadata as m; print(m.version('android-driver'))")
+          plugin=$(uv run python -c "import json,pathlib; print(json.loads(pathlib.Path('.claude-plugin/plugin.json').read_text())['version'])")
+          echo "tag=$tag pyproject=$pkg plugin=$plugin"
+          test "$tag" = "$pkg" || { echo "::error::tag $tag != pyproject.toml $pkg"; exit 1; }
+          test "$tag" = "$plugin" || { echo "::error::tag $tag != plugin.json $plugin"; exit 1; }
+
+      - run: uv build
+
+      # Hatchling cannot see nested or global gitignores, so the sdist allowlist
+      # is the only thing keeping local machine data out of a permanent release.
+      - name: Sdist must not carry local data
+        run: python3 scripts/check_sdist.py dist/*.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # mints the OIDC token Trusted Publishing exchanges for an upload
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  verify:
+    name: install from PyPI
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: astral-sh/setup-uv@v5
+      # PyPI's CDN serves a new file a moment after the upload returns.
+      - run: sleep 60
+      - name: The published artifact must actually run
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          uvx --from "android-driver==$version" android-driver < /dev/null

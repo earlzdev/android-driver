@@ -90,6 +90,25 @@ deliberately, and a tool that bypasses it will drift.
 
 Add the name to `RESERVED_TOOL_NAMES`, and a row to the tool table in `README.md`.
 
+## Releasing
+
+Bump the version in **both** `pyproject.toml` and `.claude-plugin/plugin.json` — they must agree, and
+`tests/test_packaging.py` checks that — then tag:
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+`.github/workflows/release.yml` runs the suite, refuses a tag that disagrees with either version,
+builds, checks the sdist with `scripts/check_sdist.py`, publishes to PyPI over Trusted Publishing,
+and finally installs the published artifact from PyPI and starts it. There is no API token anywhere:
+the `pypi` environment is bound to this workflow on PyPI's side.
+
+The sdist check is not ceremony. Hatchling reads only the root `.gitignore`, so a nested one and your
+global ignore file are both invisible to it; the first 0.0.1 build was 950K and carried
+`test_app/local.properties`, absolute SDK path included. `pyproject.toml` names what ships and the
+check confirms the allowlist held — before the upload, because a release cannot be unpublished.
+
 ## Pull requests
 
 Say what broke and how you know it is fixed. A failing test that now passes is the best form of that;
