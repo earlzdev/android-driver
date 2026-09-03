@@ -94,7 +94,6 @@ class Config:
     install: InstallConfig = field(default_factory=InstallConfig)
     timing: TimingConfig = field(default_factory=TimingConfig)
     driver: DriverConfig = field(default_factory=DriverConfig)
-    markers: dict[str, str] = field(default_factory=dict)
     recipes: dict[str, Any] = field(default_factory=dict)
     selectors: dict[str, Any] = field(default_factory=dict)
     runs_dir: Path = field(init=False)
@@ -190,7 +189,7 @@ def load(path: Path | None = None) -> Config:
     if not isinstance(raw, dict):
         raise ConfigError(f"{source}: top level must be a mapping, got {type(raw).__name__}")
 
-    known_top = {"app", "build", "install", "timing", "driver", "markers", "recipes", "selectors"}
+    known_top = {"app", "build", "install", "timing", "driver", "recipes", "selectors"}
     unknown_top = set(raw) - known_top
     if unknown_top:
         raise ConfigError(f"{source}: unknown top-level key(s): {sorted(unknown_top)}")
@@ -203,7 +202,6 @@ def load(path: Path | None = None) -> Config:
         install=_build_dataclass(InstallConfig, _section(raw, "install"), "install"),
         timing=_build_dataclass(TimingConfig, _section(raw, "timing"), "timing"),
         driver=_build_dataclass(DriverConfig, _section(raw, "driver"), "driver"),
-        markers=_section(raw, "markers"),
         recipes=_section(raw, "recipes"),
         selectors=_section(raw, "selectors"),
     )

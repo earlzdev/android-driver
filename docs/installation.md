@@ -34,14 +34,11 @@ claude plugin update android-driver@android-driver
 
 ## As a plain MCP server
 
-If you would rather not install a plugin — or you are using a different MCP client:
+If you would rather not install a plugin — or you are using a different MCP client. The package is on
+[PyPI](https://pypi.org/project/android-driver/), so there is nothing to clone:
 
 ```bash
-git clone https://github.com/earlzdev/android-driver.git ~/src/android-driver
-
-claude mcp add android-driver \
-  -e ANDROID_DRIVER_PROJECT="$PWD" \
-  -- uv run --project ~/src/android-driver android-driver
+claude mcp add android-driver -e ANDROID_DRIVER_PROJECT="$PWD" -- uvx android-driver
 ```
 
 Run that from the project you want to test. Add `-s user` to register it for every project.
@@ -56,13 +53,30 @@ For any other MCP client, the equivalent config is:
 {
   "mcpServers": {
     "android-driver": {
-      "command": "uv",
-      "args": ["run", "--project", "/path/to/android-driver", "android-driver"],
+      "command": "uvx",
+      "args": ["android-driver"],
       "env": { "ANDROID_DRIVER_PROJECT": "/path/to/your/android/project" }
     }
   }
 }
 ```
+
+`uvx android-driver@latest` picks up new releases; plain `uvx android-driver` keeps whatever it
+resolved first.
+
+### From a checkout instead
+
+Use this if you want to track `main` ahead of a release, or you are editing the server:
+
+```bash
+git clone https://github.com/earlzdev/android-driver.git ~/src/android-driver
+
+claude mcp add android-driver \
+  -e ANDROID_DRIVER_PROJECT="$PWD" \
+  -- uv run --project ~/src/android-driver android-driver
+```
+
+`uv run --project` and not `uvx --from ~/src/android-driver` — see the troubleshooting note below.
 
 ## How the config is found
 
@@ -99,10 +113,14 @@ The server did not find your config. Check the startup line on stderr — if it 
 Call `reload_config`. The config is read at startup.
 
 **My changes to the *source* do nothing** (contributors only).
-Do not launch with `uvx --from <path>`. uv keys that build cache on `pyproject.toml`'s mtime, so
-editing anything under `src/` leaves the cached wheel in place and the server keeps serving old code
-— silently, with a normal-looking startup. Use `uv run`, which re-syncs from source each start. Both
-shipped configs already do.
+Do not launch a checkout with `uvx --from <path>`. uv keys that build cache on `pyproject.toml`'s
+mtime, so editing anything under `src/` leaves the cached wheel in place and the server keeps serving
+old code — silently, with a normal-looking startup. Use `uv run --project`, which re-syncs from
+source each start. Both shipped configs already do.
+
+This is not an argument against `uvx android-driver` from PyPI. A published version is immutable, so
+there is no newer source for the cache to be stale against; the trap is caching a *local directory*
+you are still editing.
 
 **`RemoteDisconnected` or `device offline` right after a snapshot restore.**
 Fixed — `snapshot_load` now waits for the device to come back. If you see it on an older version,

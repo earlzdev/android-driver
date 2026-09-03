@@ -33,10 +33,14 @@ Two things about that setup are load-bearing:
 - The plugin's own MCP config is a separate file, `mcp-config.json`. A `.mcp.json` at a repo root is
   read as a *project* config, where `${CLAUDE_PLUGIN_ROOT}` does not resolve.
 
-**Never launch with `uvx --from <path>`.** uv keys that build cache on `pyproject.toml`'s mtime, so
-editing anything under `src/` leaves the cached wheel in place and the server keeps serving old code
-— silently, with a normal-looking startup. `uv run` re-syncs from source every start.
-`tests/test_packaging.py` will fail if anyone reintroduces it, because nothing else would catch it.
+**Never launch a checkout with `uvx --from <path>`.** uv keys that build cache on `pyproject.toml`'s
+mtime, so editing anything under `src/` leaves the cached wheel in place and the server keeps serving
+old code — silently, with a normal-looking startup. `uv run --project` re-syncs from source every
+start. `tests/test_packaging.py` will fail if anyone reintroduces it, because nothing else would
+catch it.
+
+(`uvx android-driver` from PyPI is fine, and is the documented install for non-plugin users. A
+published version is immutable, so there is no newer source for the cache to be stale against.)
 
 ## The live suite
 

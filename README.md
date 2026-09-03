@@ -49,8 +49,14 @@ your project directory to it so your config is found wherever Claude was launche
 uiautomator2 backend run `python -m uiautomator2 init` once per device; without it the server falls
 back to a pure-adb backend that needs nothing installed on the device.
 
-Prefer a plain MCP server, or not using Claude Code at all? See
-[docs/installation.md](docs/installation.md).
+Not using Claude Code, or want it as a plain MCP server? It is on PyPI, so there is nothing to clone:
+
+```bash
+claude mcp add android-driver -e ANDROID_DRIVER_PROJECT="$PWD" -- uvx android-driver
+```
+
+That gets you the tools but not the skill or the slash commands, which are plugin components. See
+[docs/installation.md](docs/installation.md) for the config any other MCP client wants.
 
 ## Quickstart
 
