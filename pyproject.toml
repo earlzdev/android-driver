@@ -49,7 +49,7 @@ packages = ["src/android_driver"]
 # straight into the sdist. Naming what ships is the only way to be sure; a
 # release cannot be unpublished.
 [tool.hatch.build.targets.sdist]
-only-include = ["src", "tests", "docs", "examples", "CONTRIBUTING.md"]
+only-include = ["src", "tests", "docs", "examples", "CONTRIBUTING.md", "CHANGELOG.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

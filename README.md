@@ -238,8 +238,9 @@ assertions, run bundles, screen recording, recipes and selector scanning are imp
 by tests; the live suite passes against a Pixel 7 AVD. Packaged as a Claude Code plugin with a skill
 and three commands.
 
-Not on PyPI — the plugin builds from source, so it does not need to be. Roadmap:
-[docs/roadmap.md](docs/roadmap.md). Issues and pull requests welcome.
+Released as **0.1.0** on [PyPI](https://pypi.org/project/android-driver/); see
+[CHANGELOG.md](CHANGELOG.md). Roadmap: [docs/roadmap.md](docs/roadmap.md). Issues and pull requests
+welcome.
 
 ## License
 

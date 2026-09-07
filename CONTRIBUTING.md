@@ -93,7 +93,7 @@ Add the name to `RESERVED_TOOL_NAMES`, and a row to the tool table in `README.md
 ## Releasing
 
 Bump the version in **both** `pyproject.toml` and `.claude-plugin/plugin.json` — they must agree, and
-`tests/test_packaging.py` checks that — then tag:
+`tests/test_packaging.py` checks that — add the entry to `CHANGELOG.md`, then tag:
 
 ```bash
 git tag v0.1.0 && git push --tags

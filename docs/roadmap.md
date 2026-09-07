@@ -35,9 +35,13 @@ compact screen index, core tool surface.
 - ✅ An agent-facing `CLAUDE.md` fragment consumers can drop in (`docs/agent-guide.md`)
 - ✅ Test suite: 129 unit tests against recorded hierarchy fixtures and a fake driver, plus a live
   suite gated on `ANDROID_DRIVER_LIVE=1`
-- ✅ GitHub Actions running the unit suite plus a headless-emulator smoke test
-- ⬜ PyPI publish
-- ⬜ `CONTRIBUTING.md`, issue templates
+- ✅ GitHub Actions running the unit suite; the headless-emulator job is advisory until someone works
+  out why it will not go green on a hosted runner
+- ✅ PyPI publish — 0.1.0, released from a tag over Trusted Publishing, with the sdist checked for
+  local machine data before the upload
+- ✅ `CONTRIBUTING.md` and `CHANGELOG.md`
+- ⬜ Issue templates
+- ⬜ Anthropic plugin directory submission
 
 ## Resolved along the way
 
