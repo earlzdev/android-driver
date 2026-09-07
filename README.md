@@ -6,6 +6,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
+![android-driver pinning a flaky login on an emulator](docs/assets/demo.gif)
+
+<sub>A login that fails about one attempt in three at random, pinned with a snapshot and a seed until
+it replays exactly. Driven by [`docs/demo/demo.py`](docs/demo/demo.py) — a script calling the same
+tools an agent calls, not a Claude Code session. Run it yourself.</sub>
+
 You ask an agent to reproduce a bug in your Android app. It dumps 80 KB of accessibility XML into its
 own context, taps something that turns out to be the wrong element, and when the bug does not appear
 it cannot repeat what it just did — because the app is now three screens deep in a state nobody
@@ -29,13 +35,6 @@ android-driver is built for that loop instead: **build → install → drive →
 
 Three attempts from the same snapshot, three identical results, and a directory of evidence to point
 at. That is the whole idea.
-
-![android-driver pinning a flaky login on an emulator](docs/assets/demo.gif)
-
-<sub>A different bug: a login that fails about one attempt in three at random, pinned with a snapshot
-and a seed until it replays exactly. Driven by
-[`docs/demo/demo.py`](docs/demo/demo.py) — a script calling the same tools an agent calls, not a
-Claude Code session. Run it yourself.</sub>
 
 ---
 

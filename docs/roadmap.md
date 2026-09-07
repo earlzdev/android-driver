@@ -35,8 +35,9 @@ compact screen index, core tool surface.
 - ✅ An agent-facing `CLAUDE.md` fragment consumers can drop in (`docs/agent-guide.md`)
 - ✅ Test suite: 129 unit tests against recorded hierarchy fixtures and a fake driver, plus a live
   suite gated on `ANDROID_DRIVER_LIVE=1`
-- ✅ GitHub Actions running the unit suite; the headless-emulator job is advisory until someone works
-  out why it will not go green on a hosted runner
+- ✅ GitHub Actions running the unit suite on 3.10-3.13
+- ⬜ The headless-emulator job. Moved to `workflow_dispatch` — it has never gone green on a hosted
+  runner, dying about a minute in, well before the suite starts
 - ✅ PyPI publish — 0.1.0, released from a tag over Trusted Publishing, with the sdist checked for
   local machine data before the upload
 - ✅ `CONTRIBUTING.md` and `CHANGELOG.md`
