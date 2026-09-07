@@ -103,6 +103,7 @@ def beat(seconds: float) -> None:
 
 
 LAUNCH_FLAKY = "am start -n com.earldev.flakydemo/.MainActivity --ez reset_store true"
+LAUNCH_BASELINE = LAUNCH_FLAKY + " --ez flake_enabled false"
 EMAIL, PASSWORD = "demo@test.dev", "hunter2"
 
 
@@ -226,10 +227,12 @@ def setup(s: Server, avd: str) -> None:
         s.call("start_emulator", avd=avd)
     say(f"{DIM}installing FlakyDemo...{RESET}")
     s.call("install_app", build_first=False)
-    # The snapshot has to be taken on the login screen: that is where every
-    # seeded attempt begins, and restoring anywhere else would need extra steps
-    # the demo would have to show and explain.
-    s.call("run_recipe", name="login_deterministic", params={})
+    # Snapshot a freshly launched login screen with the flakes off. Every seeded
+    # attempt relaunches the app itself, so all the snapshot has to provide is a
+    # device in a known state with an empty store.
+    s.call("force_stop")
+    s.call("shell", cmd=LAUNCH_BASELINE)
+    time.sleep(2.5)
     s.call("snapshot_save", name="clean")
     say(f"{GREEN}ready{RESET} — snapshot 'clean' saved on the login screen")
 

@@ -16,8 +16,25 @@ python docs/demo/demo.py --setup     # install, and save the 'clean' snapshot on
 python docs/demo/demo.py             # the demo itself, about 90 seconds
 ```
 
-`--setup` reuses a device that is already attached rather than booting one, because choosing GPU
-flags for an emulator is the sort of thing you have usually already done.
+`--setup` reuses a device that is already attached rather than booting one, because the GPU flags
+matter here — see below.
+
+### Boot the emulator with a software renderer
+
+On Apple Silicon, boot it yourself:
+
+```bash
+emulator -avd Pixel_7 -gpu swiftshader_indirect -no-boot-anim -noaudio
+```
+
+Under the default GPU the app is fine but the *accessibility queries* are not: `type` fails in 50 ms
+without touching the field, and `expect_visible` gives up after 2 s instead of waiting its timeout.
+The failure looks exactly like a broken app, and it is not — on one such run the logcat read
+`flake init seed=20 → login_result outcome=success → screen=dashboard` while the demo reported that
+the dashboard never appeared. Same script, same snapshot, clean 3/3 under `swiftshader_indirect`.
+
+`start_emulator` passes no GPU flag, so a device it boots inherits the default. That is why `--setup`
+prefers a device you started.
 
 ## Recording it
 

@@ -9,3 +9,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+
+# Screen recordings live outside the repo; only the exported GIF is committed.
+*.mov

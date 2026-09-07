@@ -30,6 +30,13 @@ android-driver is built for that loop instead: **build → install → drive →
 Three attempts from the same snapshot, three identical results, and a directory of evidence to point
 at. That is the whole idea.
 
+![android-driver pinning a flaky login on an emulator](docs/assets/demo.gif)
+
+<sub>A different bug: a login that fails about one attempt in three at random, pinned with a snapshot
+and a seed until it replays exactly. Driven by
+[`docs/demo/demo.py`](docs/demo/demo.py) — a script calling the same tools an agent calls, not a
+Claude Code session. Run it yourself.</sub>
+
 ---
 
 ## Install
